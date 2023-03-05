@@ -10,11 +10,11 @@
   },
   "dependencies": {
     "@types/three": "^0.149.0",
-    "three": "^0.149.0",
+    "three": "^0.150.1",
     "vue": "^3.2.45"
   },
   "devDependencies": {
-    "@sepveneto/eslint-config": "^0.7.0",
+    "@sepveneto/eslint-config": "^0.8.1",
     "@types/node": "^18.13.0",
     "@vitejs/plugin-vue": "^4.0.0",
     "eslint": "^8.34.0",
