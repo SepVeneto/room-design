@@ -38,7 +38,6 @@ function initRollOverBox() {
   const rollOverGo = new THREE.BoxGeometry(50, 50, 50)
   const rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, opacity: 0.5, transparent: true })
   rollOverMesh = new THREE.Mesh(rollOverGo, rollOverMaterial)
-  rollOverMesh.name = 'rolloverBox'
   scene.add(rollOverMesh)
 }
 
@@ -98,16 +97,20 @@ function onPointerMove(event: PointerEvent) {
   const intersects = raycaster.intersectObjects(objects, false)
   if (intersects.length > 0) {
     const intersect = intersects[0]
-    console.log(intersect.object.name)
-    if (intersect.object.name === 'rolloverBox') {
+    if (intersect.object.name === 'temp-box' || !isShift) {
+      console.log(isShift)
       return;
     } else {
-      const mesh = rollOverMesh.clone()
-      mesh.name = 'rolloverBox'
-      scene.add(mesh)
+      const rollOverGo = new THREE.BoxGeometry(50, 50, 50)
+      const rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, opacity: 0.5, transparent: true })
+      const obj = new THREE.Mesh(rollOverGo, rollOverMaterial)
+      obj.name = 'temp-box'
+      console.log(obj)
+      scene.add(obj)
+      obj.position.copy(intersect.point).add(intersect.face!.normal)
+      obj.position.divideScalar(50).floor().multiplyScalar(50).addScalar(25)
+      objects.push(obj)
     }
-    rollOverMesh.position.copy(intersect.point).add(intersect.face!.normal)
-    rollOverMesh.position.divideScalar(50).floor().multiplyScalar(50).addScalar(25)
 
 
     render()
@@ -137,13 +140,16 @@ function setFloor() {
   objects.push(plane)
 }
 function onKeydown(event: KeyboardEvent) {
-  if (event.shiftKey) {
+  if (event.key === 'Shift') {
     isShift = true
   }
 }
 function onKeyup(event: KeyboardEvent) {
-  if (event.shiftKey) {
+  if (event.key === 'Shift') {
     isShift = false
+    scene.remove(...objects.filter(item => item.name === 'temp-box'))
+    objects = objects.filter(item => item.name !== 'temp-box')
+    render()
   }
 }
 </script>
