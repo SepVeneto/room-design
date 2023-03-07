@@ -7,7 +7,7 @@
 
 <script setup lang="ts">
 import * as THREE from 'three'
-import { Material, Object3D } from 'three';
+import { DirectionalLight, Material, Object3D } from 'three';
 // // @ts-expect-error: no type
 // import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { onMounted, ref, shallowRef } from 'vue'
@@ -20,9 +20,16 @@ let scene: THREE.Scene
 let raycaster = new THREE.Raycaster()
 let pointer = new THREE.Vector2()
 let rollOverMesh: THREE.Mesh
-let objects: Object3D[] = []
+let objects: THREE.Mesh[] = []
 let renderer: THREE.WebGLRenderer
 let isShift: Boolean
+
+let cubeGeo = new THREE.BoxGeometry(50, 50, 50)
+let cubeMaterial = new THREE.MeshLambertMaterial(
+  { color: 0xfeb74c,
+    map: new THREE.TextureLoader().load('/square-outline-textured.png')
+  },
+)
 
 onMounted(() => {
   init()
@@ -55,10 +62,19 @@ function initCamera() {
   camera.value.position.set(500, 800, 1300)
   camera.value.lookAt(0, 0, 0)
 }
+function initLighting() {
+  const ambientLight = new THREE.AmbientLight(0x606060)
+  scene.add(ambientLight)
+
+  const directionalLight = new THREE.DirectionalLight(0xffffff)
+  directionalLight.position.set(1, 0.75, 0.5).normalize()
+  scene.add(directionalLight)
+}
 
 function init() {
   initScene()
   initCamera()
+  initLighting()
   initRollOverBox()
   initGridHelper()
   initAxesHelper()
@@ -98,14 +114,12 @@ function onPointerMove(event: PointerEvent) {
   if (intersects.length > 0) {
     const intersect = intersects[0]
     if (intersect.object.name === 'temp-box' || !isShift) {
-      console.log(isShift)
       return;
     } else {
       const rollOverGo = new THREE.BoxGeometry(50, 50, 50)
       const rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, opacity: 0.5, transparent: true })
       const obj = new THREE.Mesh(rollOverGo, rollOverMaterial)
       obj.name = 'temp-box'
-      console.log(obj)
       scene.add(obj)
       obj.position.copy(intersect.point).add(intersect.face!.normal)
       obj.position.divideScalar(50).floor().multiplyScalar(50).addScalar(25)
@@ -125,8 +139,19 @@ function onPointerDown(event: PointerEvent) {
   const intersects = raycaster.intersectObjects(objects, false)
   if (intersects.length > 0) {
     const intersect = intersects[0]
-    console.log(intersect)
+
+    objects.filter(item => item.name === 'temp-box').map(obj => {
+      obj.geometry = cubeGeo
+      obj.material = cubeMaterial
+      obj.name = 'real-box'
+    })
+    // const voxel = new THREE.Mesh(cubeGeo, cubeMaterial)
+    // voxel.position.copy(intersect.point).add(intersect.face!.normal)
+    // voxel.position.divideScalar(50).floor().multiplyScalar(50).addScalar(25)
+    // scene.add(voxel)
+    // objects.push(voxel)
   }
+  render()
 }
 
 function render() {
