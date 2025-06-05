@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>海洋波浪模拟 - 波峰尖锐问题解决方案</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a2a6c, #2c3e50);
+            color: #fff;
+        }
+        canvas { 
+            display: block; 
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 20, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            max-width: 400px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(100, 150, 255, 0.3);
+            z-index: 10;
+        }
+        #info h1 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            color: #4fc3f7;
+        }
+        #info p {
+            margin: 5px 0;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        #params {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 10, 30, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(100, 150, 255, 0.3);
+            z-index: 10;
+        }
+        .param-group {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+        }
+        label {
+            display: inline-block;
+            width: 180px;
+            font-size: 14px;
+        }
+        input[type="range"] {
+            width: 200px;
+            vertical-align: middle;
+            margin-right: 10px;
+        }
+        .value-display {
+            display: inline-block;
+            width: 60px;
+            text-align: right;
+            font-family: monospace;
+        }
+        button {
+            background: #2196f3;
+            border: none;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #64b5f6;
+        }
+        #status {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 30, 60, 0.8);
+            padding: 10px 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(100, 150, 255, 0.3);
+            z-index: 10;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #4fc3f7;
+            z-index: 10;
+        }
+        .highlight {
+            color: #4fc3f7;
+            font-weight: bold;
+        }
+        #comparison-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            background: rgba(0, 10, 30, 0.8);
+            border-radius: 10px;
+            padding: 15px;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(100, 150, 255, 0.3);
+            z-index: 10;
+        }
+        .comparison-item {
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(100, 150, 255, 0.2);
+        }
+        .comparison-item:last-child {
+            border-bottom: none;
+        }
+        .wave-profile {
+            width: 100%;
+            height: 80px;
+            background: rgba(0, 0, 0, 0.3);
+            margin-top: 5px;
+            position: relative;
+            overflow: hidden;
+        }
+        .wave-line {
+            position: absolute;
+            top: 50%;
+            width: 100%;
+            height: 2px;
+            background: #4fc3f7;
+        }
+        .wave-shape {
+            position: absolute;
+            top: 50%;
+            width: 100%;
+            height: 100%;
+            transform: translateY(-50%);
+        }
+        .problem {
+            color: #ff6b6b;
+        }
+        .solution {
+            color: #4cd97b;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h1>海洋波浪模拟 - 波峰尖锐问题</h1>
+        <p>分析波峰尖锐原因并提供解决方案</p>
+        <p>模拟尺寸: <span class="highlight">1000m × 1000m</span></p>
+        <p>采样精度: <span class="highlight">64 × 64</span> 点</p>
+        <p>当前帧率: <span id="fps">0</span> FPS</p>
+    </div>
+    
+    <div id="comparison-container">
+        <h3>波峰尖锐原因分析</h3>
+        
+        <div class="comparison-item">
+            <div class="problem">高频成分过多</div>
+            <div class="wave-profile">
+                <div class="wave-line"></div>
+                <div class="wave-shape" id="high-frequency"></div>
+            </div>
+            <p>高频抑制因子: <span id="hf-value" class="value-display">0.001L</span></p>
+        </div>
+        
+        <div class="comparison-item">
+            <div class="problem">振幅过大</div>
+            <div class="wave-profile">
+                <div class="wave-line"></div>
+                <div class="wave-shape" id="amplitude-problem"></div>
+            </div>
+            <p>Phillips常数A: <span id="ampl-value" class="value-display">0.001</span></p>
+        </div>
+        
+        <div class="comparison-item">
+            <div class="solution">优化后波浪</div>
+            <div class="wave-profile">
+                <div class="wave-line"></div>
+                <div class="wave-shape" id="optimized-wave"></div>
+            </div>
+            <p>参数调整后更自然的波浪</p>
+        </div>
+    </div>
+    
+    <div id="params">
+        <div class="param-group">
+            <label for="windSpeed">风速 (m/s):</label>
+            <input type="range" id="windSpeed" min="5" max="20" step="0.5" value="10">
+            <span id="windSpeedValue" class="value-display">10.0</span>
+        </div>
+        <div class="param-group">
+            <label for="waveAmplitude">波浪振幅 (A):</label>
+            <input type="range" id="waveAmplitude" min="0.0001" max="0.002" step="0.0001" value="0.0005">
+            <span id="waveAmplValue" class="value-display">0.0005</span>
+        </div>
+        <div class="param-group">
+            <label for="hfFactor">高频抑制 (l):</label>
+            <input type="range" id="hfFactor" min="0.0005" max="0.005" step="0.0001" value="0.001">
+            <span id="hfFactorValue" class="value-display">0.001</span>
+        </div>
+        <div class="param-group">
+            <label for="kMin">最小波数 (k_min):</label>
+            <input type="range" id="kMin" min="0.01" max="0.5" step="0.01" value="0.1">
+            <span id="kMinValue" class="value-display">0.1</span>
+        </div>
+        <div class="param-group">
+            <label for="kMax">最大波数 (k_max):</label>
+            <input type="range" id="kMax" min="0.5" max="3.0" step="0.1" value="2.0">
+            <span id="kMaxValue" class="value-display">2.0</span>
+        </div>
+        <div class="param-group">
+            <button id="resetBtn">重置参数</button>
+            <button id="optimizeBtn">优化参数</button>
+        </div>
+    </div>
+    
+    <div id="status">
+        计算状态: <span id="calcStatus">准备中...</span>
+    </div>
+    
+    <div id="loading">初始化模拟...</div>
+
+    <script>
+        // 页面元素
+        const loadingElement = document.getElementById('loading');
+        const fpsElement = document.getElementById('fps');
+        const calcStatusElement = document.getElementById('calcStatus');
+        const windSpeedSlider = document.getElementById('windSpeed');
+        const windSpeedValue = document.getElementById('windSpeedValue');
+        const waveAmplitudeSlider = document.getElementById('waveAmplitude');
+        const waveAmplValue = document.getElementById('waveAmplValue');
+        const hfFactorSlider = document.getElementById('hfFactor');
+        const hfFactorValue = document.getElementById('hfFactorValue');
+        const kMinSlider = document.getElementById('kMin');
+        const kMinValue = document.getElementById('kMinValue');
+        const kMaxSlider = document.getElementById('kMax');
+        const kMaxValue = document.getElementById('kMaxValue');
+        const resetBtn = document.getElementById('resetBtn');
+        const optimizeBtn = document.getElementById('optimizeBtn');
+        
+        // 波浪剖面图元素
+        const highFrequencyWave = document.getElementById('high-frequency');
+        const amplitudeProblemWave = document.getElementById('amplitude-problem');
+        const optimizedWave = document.getElementById('optimized-wave');
+        
+        // 模拟参数
+        const SIZE = 1000;         // 模拟区域尺寸（米）
+        const RESOLUTION = 64;     // 采样精度
+        const NUM_K = 30;           // 波数采样数
+        const NUM_THETA = 18;       // 角度采样数
+        
+        // 物理常数
+        const G = 9.81;            // 重力加速度
+        
+        // 全局变量
+        let scene, camera, renderer;
+        let oceanMesh;
+        let ks = [];                // 波矢量列表
+        let time = 0;               // 模拟时间
+        let frameCount = 0;         // 帧计数器
+        let lastFpsUpdate = 0;      // 上次FPS更新时间
+        let lastTimestamp = 0;      // 上次时间戳
+        
+        // 初始化Three.js场景
+        function initScene() {
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a2548);
+            scene.fog = new THREE.Fog(0x0a2548, 500, 2000);
+            
+            // 创建相机
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 5000);
+            camera.position.set(0, 150, 700);
+            
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.body.appendChild(renderer.domElement);
+            
+            // 添加光源
+            const ambientLight = new THREE.AmbientLight(0x333344);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(1, 1, 0.5).normalize();
+            scene.add(directionalLight);
+            
+            // 添加天空盒
+            const skyGeometry = new THREE.SphereGeometry(2000, 32, 32);
+            const skyMaterial = new THREE.MeshBasicMaterial({
+                color: 0x87CEEB,
+                side: THREE.BackSide
+            });
+            const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+            scene.add(sky);
+            
+            // 初始化海洋
+            initOcean();
+            
+            // 添加事件监听器
+            window.addEventListener('resize', onWindowResize);
+            resetBtn.addEventListener('click', resetParams);
+            optimizeBtn.addEventListener('click', applyOptimizedParams);
+            
+            // 参数滑块事件
+            windSpeedSlider.addEventListener('input', updateParams);
+            waveAmplitudeSlider.addEventListener('input', updateParams);
+            hfFactorSlider.addEventListener('input', updateParams);
+            kMinSlider.addEventListener('input', updateParams);
+            kMaxSlider.addEventListener('input', updateParams);
+            
+            // 隐藏加载提示
+            loadingElement.style.display = 'none';
+        }
+        
+        // 初始化海洋网格
+        function initOcean() {
+            calcStatusElement.textContent = "生成波浪参数...";
+            
+            // 创建海洋几何体
+            const geometry = new THREE.PlaneGeometry(SIZE, SIZE, RESOLUTION - 1, RESOLUTION - 1);
+            geometry.rotateX(-Math.PI / 2);
+            
+            // 创建材质
+            const material = new THREE.MeshPhongMaterial({
+                color: 0x1e90ff,
+                wireframe: false,
+                flatShading: true,
+                shininess: 80,
+                transparent: true,
+                opacity: 0.9,
+                specular: 0x111111
+            });
+            
+            // 创建网格
+            oceanMesh = new THREE.Mesh(geometry, material);
+            scene.add(oceanMesh);
+            
+            // 生成波浪参数
+            generateKs();
+            
+            // 初始高度计算
+            calcStatusElement.textContent = "计算初始高度场...";
+            updateOceanGeometry();
+        }
+        
+        // 生成波矢量列表
+        function generateKs() {
+            ks = [];
+            const windSpeed = parseFloat(windSpeedSlider.value);
+            const A = parseFloat(waveAmplitudeSlider.value); // Phillips谱常数
+            const hfFactor = parseFloat(hfFactorSlider.value); // 高频抑制因子
+            const k_min = parseFloat(kMinSlider.value); // 最小波数
+            const k_max = parseFloat(kMaxSlider.value); // 最大波数
+            
+            const L = (windSpeed ** 2) / G; // 特征长度
+            const l = hfFactor * L; // 高频抑制因子
+            
+            for (let ki = 0; ki < NUM_K; ki++) {
+                const k_mag = k_min + (k_max - k_min) * (ki / (NUM_K - 1));
+                for (let ti = 0; ti < NUM_THETA; ti++) {
+                    const theta = (-80 + (160 * ti) / (NUM_THETA - 1)) * (Math.PI / 180);
+                    const kx = k_mag * Math.cos(theta);
+                    const kz = k_mag * Math.sin(theta);
+                    
+                    if (kx <= 0) continue; // 仅考虑顺风向波
+                    
+                    const kmag = Math.sqrt(kx ** 2 + kz ** 2);
+                    const phillips = A * Math.exp(-1 / (kmag * L) ** 2) * 
+                                     Math.exp(-((kmag * l) ** 2)) / 
+                                     (kmag ** 4) * 
+                                     (kx / kmag) ** 2;
+                    
+                    if (phillips < 1e-6) continue;
+                    
+                    const amplitude = Math.sqrt(phillips);
+                    const phase = Math.random() * 2 * Math.PI;
+                    const omega = Math.sqrt(G * kmag);
+                    
+                    ks.push({ kx, kz, amplitude, phase, omega });
+                }
+            }
+        }
+        
+        // 更新海洋几何体高度
+        function updateOceanGeometry() {
+            const startTime = performance.now();
+            const positions = oceanMesh.geometry.attributes.position;
+            const halfSize = SIZE / 2;
+            
+            // 平滑波浪的临时数组
+            const smoothedHeights = new Array(RESOLUTION * RESOLUTION).fill(0);
+            
+            for (let i = 0; i < RESOLUTION; i++) {
+                for (let j = 0; j < RESOLUTION; j++) {
+                    const idx = i * RESOLUTION + j;
+                    const x = (i / (RESOLUTION - 1)) * SIZE - halfSize;
+                    const z = (j / (RESOLUTION - 1)) * SIZE - halfSize;
+                    
+                    let h = 0;
+                    for (const k of ks) {
+                        const arg = k.kx * x + k.kz * z + k.phase + k.omega * time;
+                        h += k.amplitude * Math.sin(arg);
+                    }
+                    
+                    // 应用高度到顶点
+                    positions.setY(idx, h * 100); // 放大高度增强视觉效果
+                    smoothedHeights[idx] = h;
+                }
+            }
+            
+            // 应用平滑处理
+            applySmoothing(smoothedHeights, positions);
+            
+            positions.needsUpdate = true;
+            oceanMesh.geometry.computeVertexNormals();
+            
+            const calcTime = performance.now() - startTime;
+            calcStatusElement.textContent = `计算完成: ${calcTime.toFixed(1)}ms (${RESOLUTION}×${RESOLUTION})`;
+        }
+        
+        // 应用平滑处理
+        function applySmoothing(heights, positions) {
+            const kernel = [
+                [0.05, 0.1, 0.05],
+                [0.1, 0.4, 0.1],
+                [0.05, 0.1, 0.05]
+            ];
+            
+            const resolution = RESOLUTION;
+            
+            for (let i = 1; i < resolution - 1; i++) {
+                for (let j = 1; j < resolution - 1; j++) {
+                    const idx = i * resolution + j;
+                    
+                    let smoothed = 0;
+                    for (let di = -1; di <= 1; di++) {
+                        for (let dj = -1; dj <= 1; dj++) {
+                            const nIdx = (i + di) * resolution + (j + dj);
+                            smoothed += heights[nIdx] * kernel[di + 1][dj + 1];
+                        }
+                    }
+                    
+                    positions.setY(idx, smoothed * 100);
+                }
+            }
+        }
+        
+        // 更新参数
+        function updateParams() {
+            windSpeedValue.textContent = windSpeedSlider.value;
+            waveAmplValue.textContent = waveAmplitudeSlider.value;
+            hfFactorValue.textContent = hfFactorSlider.value;
+            kMinValue.textContent = kMinSlider.value;
+            kMaxValue.textContent = kMaxSlider.value;
+            
+            generateKs();
+            updateWaveProfiles();
+        }
+        
+        // 重置参数
+        function resetParams() {
+            windSpeedSlider.value = 10;
+            waveAmplitudeSlider.value = 0.0005;
+            hfFactorSlider.value = 0.001;
+            kMinSlider.value = 0.1;
+            kMaxSlider.value = 2.0;
+            
+            updateParams();
+        }
+        
+        // 应用优化参数
+        function applyOptimizedParams() {
+            windSpeedSlider.value = 10;
+            waveAmplitudeSlider.value = 0.0003;
+            hfFactorSlider.value = 0.0025;
+            kMinSlider.value = 0.05;
+            kMaxSlider.value = 1.5;
+            
+            updateParams();
+        }
+        
+        // 更新波浪剖面图
+        function updateWaveProfiles() {
+            // 高频问题波浪
+            let highFreqSVG = '<svg width="300" height="80" viewBox="0 0 300 80">';
+            for (let i = 0; i < 300; i += 2) {
+                const x = i;
+                const y = 40 + Math.sin(i * 0.2) * 15 + Math.sin(i * 0.5) * 10;
+                if (i === 0) {
+                    highFreqSVG += `<path d="M${x},${y} " stroke="#ff6b6b" stroke-width="2" fill="none" />`;
+                } else {
+                    highFreqSVG += ` L${x},${y}`;
+                }
+            }
+            highFreqSVG += '"/>';
+            highFrequencyWave.innerHTML = highFreqSVG;
+            
+            // 振幅问题波浪
+            let amplSVG = '<svg width="300" height="80" viewBox="0 0 300 80">';
+            for (let i = 0; i < 300; i += 2) {
+                const x = i;
+                const y = 40 + Math.sin(i * 0.1) * 30;
+                if (i === 0) {
+                    amplSVG += `<path d="M${x},${y} " stroke="#ff6b6b" stroke-width="2" fill="none" />`;
+                } else {
+                    amplSVG += ` L${x},${y}`;
+                }
+            }
+            amplSVG += '"/>';
+            amplitudeProblemWave.innerHTML = amplSVG;
+            
+            // 优化后波浪
+            let optimizedSVG = '<svg width="300" height="80" viewBox="0 0 300 80">';
+            for (let i = 0; i < 300; i += 2) {
+                const x = i;
+                const y = 40 + Math.sin(i * 0.08) * 15 + Math.sin(i * 0.15) * 5;
+                if (i === 0) {
+                    optimizedSVG += `<path d="M${x},${y} " stroke="#4cd97b" stroke-width="2" fill="none" />`;
+                } else {
+                    optimizedSVG += ` L${x},${y}`;
+                }
+            }
+            optimizedSVG += '"/>';
+            optimizedWave.innerHTML = optimizedSVG;
+        }
+        
+        // 窗口大小变化处理
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // 动画循环
+        function animate(timestamp) {
+            requestAnimationFrame(animate);
+            
+            // 计算帧率
+            frameCount++;
+            const delta = timestamp - lastTimestamp;
+            lastTimestamp = timestamp;
+            
+            if (timestamp - lastFpsUpdate > 1000) {
+                fpsElement.textContent = (frameCount * 1000 / (timestamp - lastFpsUpdate)).toFixed(1);
+                frameCount = 0;
+                lastFpsUpdate = timestamp;
+            }
+            
+            // 更新海洋
+            time += delta * 0.001;
+            updateOceanGeometry();
+            
+            // 旋转相机
+            camera.position.x = 700 * Math.sin(time * 0.1);
+            camera.position.z = 700 * Math.cos(time * 0.1);
+            camera.lookAt(scene.position);
+            
+            // 渲染场景
+            renderer.render(scene, camera);
+        }
+        
+        // 启动模拟
+        function startSimulation() {
+            initScene();
+            updateWaveProfiles();
+            animate(0);
+        }
+        
+        // 页面加载完成后启动
+        window.addEventListener('load', startSimulation);
+    </script>
+</body>
+</html>

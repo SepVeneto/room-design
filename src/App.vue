@@ -7,10 +7,16 @@
 
 <script setup lang="ts">
 import * as THREE from 'three'
-// // @ts-expect-error: no type
+// @ts-expect-error: no type
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { onMounted, ref, shallowRef } from 'vue'
+import { computeHeightField, generateKs } from './utils'
 // import Floor from './Body/Floor'
+
+const ks = generateKs()
+
+const frameHeight = computeHeightField(ks, 0, 100, 64)
+console.log(frameHeight)
 
 const threeDomRef = ref()
 const camera = shallowRef<THREE.PerspectiveCamera>()
