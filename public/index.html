@@ -202,28 +202,28 @@
     <div id="params">
         <div class="param-group">
             <label for="windSpeed">风速 (m/s):</label>
-            <input type="range" id="windSpeed" min="5" max="20" step="0.5" value="10">
+            <input type="range" id="windSpeed" min="5" max="20" step="0.5" value="5">
             <span id="windSpeedValue" class="value-display">10.0</span>
         </div>
         <div class="param-group">
             <label for="waveAmplitude">波浪振幅 (A):</label>
             <input type="range" id="waveAmplitude" min="0.0001" max="0.002" step="0.0001" value="0.0005">
-            <span id="waveAmplValue" class="value-display">0.0005</span>
+            <span id="waveAmplValue" class="value-display">0.0001</span>
         </div>
         <div class="param-group">
             <label for="hfFactor">高频抑制 (l):</label>
             <input type="range" id="hfFactor" min="0.0005" max="0.005" step="0.0001" value="0.001">
-            <span id="hfFactorValue" class="value-display">0.001</span>
+            <span id="hfFactorValue" class="value-display">0.0022</span>
         </div>
         <div class="param-group">
             <label for="kMin">最小波数 (k_min):</label>
             <input type="range" id="kMin" min="0.01" max="0.5" step="0.01" value="0.1">
-            <span id="kMinValue" class="value-display">0.1</span>
+            <span id="kMinValue" class="value-display">0.5</span>
         </div>
         <div class="param-group">
             <label for="kMax">最大波数 (k_max):</label>
             <input type="range" id="kMax" min="0.5" max="3.0" step="0.1" value="2.0">
-            <span id="kMaxValue" class="value-display">2.0</span>
+            <span id="kMaxValue" class="value-display">3.0</span>
         </div>
         <div class="param-group">
             <button id="resetBtn">重置参数</button>
@@ -570,8 +570,8 @@
             updateOceanGeometry();
             
             // 旋转相机
-            camera.position.x = 700 * Math.sin(time * 0.1);
-            camera.position.z = 700 * Math.cos(time * 0.1);
+            // camera.position.x = 700 * Math.sin(time * 0.1);
+            // camera.position.z = 700 * Math.cos(time * 0.1);
             camera.lookAt(scene.position);
             
             // 渲染场景

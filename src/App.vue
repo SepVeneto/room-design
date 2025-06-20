@@ -15,9 +15,6 @@ import { computeHeightField, generateKs } from './utils'
 
 const ks = generateKs()
 
-const frameHeight = computeHeightField(ks, 0, 100, 64)
-console.log(frameHeight)
-
 const threeDomRef = ref()
 const camera = shallowRef<THREE.PerspectiveCamera>()
 let scene: THREE.Scene
@@ -85,22 +82,37 @@ function initAxesHelper() {
   scene.add(axesHelper)
 }
 function render() {
+  const frameHeight = computeHeightField(ks, performance.now(), 5000, 64)
+  const positions = (ocean.geometry as THREE.PlaneGeometry).attributes.position
+
+  for (let i = 0; i < frameHeight.length; i++) {
+    const height = frameHeight[i]
+    ;(positions as THREE.BufferAttribute).setY(i, height * 50)
+  }
+
+  positions.needsUpdate = true
+
   renderer.render(scene, camera.value!)
 }
+let ocean: THREE.Mesh
 function setFloor() {
-  const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 })
-  const geometry = new THREE.PlaneGeometry(1000, 1000, 10, 10)
+  // const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 })
+  const geometry = new THREE.PlaneGeometry(5000, 5000, 63, 63)
+  geometry.rotateX(-Math.PI / 2)
   // const geometry = new THREE.BufferGeometry()
   // geometry.setAttribute('position', new THREE.Float32BufferAttribute([], 3))
-  scene.add(new THREE.LineSegments(new THREE.WireframeGeometry(geometry), lineMaterial))
-  const plane = new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({
-    color: 0x156289,
-    emissive: 0x072534,
-    side: THREE.DoubleSide,
+  // scene.add(new THREE.LineSegments(new THREE.WireframeGeometry(geometry), lineMaterial))
+  ocean = new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({
+    color: 0x1e90ff,
     flatShading: true,
+    specular: 0x111111,
+    wireframe: false,
+    shininess: 80,
+    opacity: 0.5,
+    transparent: true,
   }))
-  scene.add(plane)
-  scene.rotateX(-Math.PI / 2)
+  scene.add(ocean)
+  // scene.rotateX(-Math.PI / 2)
   // objects.push(plane)
 }
 </script>

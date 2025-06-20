@@ -1,10 +1,10 @@
-const V = 10
+const V = 4.0
 const g = 9.81
 const L = (V ** 2) / g
-const A = 0.0005
+const A = 0.001
 const numK = 30
 const numTheta = 18
-const l = 0.001 * L
+const l = 0.004 * L
 
 type KS = { kx: number, kz: number, ampltiude: number, phase: number, omega: number }
 
@@ -52,7 +52,7 @@ export function computeHeightField(ks: KS[], time: number, size: number, resolut
       let h = 0
 
       for (const k of ks) {
-        const arg = k.kx * x + k.kz * z + k.phase + k.omega * time
+        const arg = k.kx * x + k.kz * z + k.phase + k.omega * time * 0.0005
         h += k.ampltiude * Math.sin(arg)
       }
 
