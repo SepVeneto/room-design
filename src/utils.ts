@@ -1,12 +1,14 @@
+import { Float32BufferAttribute, MaxEquation } from "three"
+
 const V = 4.0
 const g = 9.81
 const L = (V ** 2) / g
-const A = 0.001
+const A = 0.1
 const numK = 30
 const numTheta = 18
 const l = 0.004 * L
 
-type KS = { kx: number, kz: number, ampltiude: number, phase: number, omega: number }
+type KS = { kx: number, kz: number, ampltiude: number, phase: number, omega: number, kmag: number, stepness: number }
 
 export function generateKs() {
   const k_min = 0.1
@@ -23,41 +25,59 @@ export function generateKs() {
       if (kx <= 0) continue
 
       const kmag = Math.sqrt(kx ** 2 + kz ** 2)
-      const phillips = A * Math.exp(-1 / (kmag * L) ** 2) *
+      const phillips = Math.exp(-1 / (kmag * L) ** 2) *
                        Math.exp(-((kmag * l) ** 2)) /
                        (kmag ** 4) *
                        (kx / kmag) ** 2
+      // const phillips = Math.exp(-1 / (kmag * L) ** 2) / (kmag ** 4) * (kx / kmag) ** 2;
 
       if (phillips < 1e-6) continue
 
-      const ampltiude = Math.sqrt(phillips)
+      const ampltiude = A * Math.sqrt(phillips)
       const phase = Math.random() * 2 * Math.PI
       const omega = Math.sqrt(g * kmag)
+      const maxStepness = 1.0 / (kmag * ampltiude * numK * numTheta)
 
-      ks.push({ kx, kz, ampltiude, phase, omega })
+      ks.push({ kx, kz, ampltiude, phase, omega, kmag, stepness: 0.5 * Math.min(maxStepness, 1.0) })
     }
   }
 
   return ks
 }
 
-export function computeHeightField(ks: KS[], time: number, size: number, resolution: number) {
-  const heights = new Float32Array(resolution ** 2)
-  const halfSize = size / 2
+export function computeHeightField(ks: KS[], time: number, size: number, resolution: number, initial: Float32Array, geometry: THREE.PlaneGeometry) {
+  const pos = geometry.attributes.position as Float32BufferAttribute
 
   for (let i = 0; i < resolution; ++i) {
     for (let j = 0; j < resolution; ++j) {
-      const x = (i / resolution) * size - halfSize
-      const z = (j / resolution) * size - halfSize
-      let h = 0
+      const idx = (i * resolution + j) * 3
+      const x0 = initial[idx]
+      const z0 = initial[idx + 2]
+
+      let x = x0
+      let y = 0
+      let z = z0
 
       for (const k of ks) {
-        const arg = k.kx * x + k.kz * z + k.phase + k.omega * time * 0.0005
-        h += k.ampltiude * Math.sin(arg)
+        const arg = k.kx * x + k.kz * z + k.phase + k.omega * time
+
+        const sinPhase = Math.sin(arg)
+        const cosPhase = Math.cos(arg)
+
+        y += k.ampltiude * cosPhase
+        x -= k.stepness * (k.kx / k.kmag) * k.ampltiude * sinPhase
+        z -= k.stepness * (k.kz / k.kmag) * k.ampltiude * sinPhase
+        // h += k.ampltiude * Math.sin(arg)
       }
 
-      heights[i * resolution + j] = h
+      // heights[i * resolution + j] = h
+      // pos[idx] = x
+      // pos[idx + 1] = y * 30
+      // pos[idx + 2] = z
+      pos.setX(idx / 3, x)
+      pos.setY(idx / 3, y * 30)
+      pos.setZ(idx / 3, z)
     }
   }
-  return heights
+  return pos
 }

@@ -81,36 +81,41 @@ function initAxesHelper() {
   axesHelper.position.set(0, 0, 0)
   scene.add(axesHelper)
 }
+const RESOLUTION = 1000
+
 function render() {
-  const frameHeight = computeHeightField(ks, performance.now(), 5000, 64)
-  const positions = (ocean.geometry as THREE.PlaneGeometry).attributes.position
+  computeHeightField(ks, performance.now() * 0.001, RESOLUTION, 64, initial, ocean.geometry as THREE.PlaneGeometry)
+  ;(ocean.geometry as THREE.PlaneGeometry).attributes.position.needsUpdate = true
+  ocean.geometry.computeVertexNormals()
 
-  for (let i = 0; i < frameHeight.length; i++) {
-    const height = frameHeight[i]
-    ;(positions as THREE.BufferAttribute).setY(i, height * 50)
-  }
+  // for (let i = 0; i < frameHeight.length; i++) {
+  //   const height = frameHeight[i]
+  //   ;(positions as THREE.BufferAttribute).setY(i, height * 50)
+  // }
 
-  positions.needsUpdate = true
+  // positions.needsUpdate = true
 
   renderer.render(scene, camera.value!)
 }
 let ocean: THREE.Mesh
+let initial: Float32Array
 function setFloor() {
   // const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 })
-  const geometry = new THREE.PlaneGeometry(5000, 5000, 63, 63)
+  const geometry = new THREE.PlaneGeometry(RESOLUTION * 7, RESOLUTION * 7, 63, 63)
   geometry.rotateX(-Math.PI / 2)
   // const geometry = new THREE.BufferGeometry()
   // geometry.setAttribute('position', new THREE.Float32BufferAttribute([], 3))
   // scene.add(new THREE.LineSegments(new THREE.WireframeGeometry(geometry), lineMaterial))
   ocean = new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({
     color: 0x1e90ff,
-    flatShading: true,
+    flatShading: false,
     specular: 0x111111,
     wireframe: false,
     shininess: 80,
-    opacity: 0.5,
+    opacity: 0.9,
     transparent: true,
   }))
+  initial = new Float32Array((ocean.geometry as THREE.PlaneGeometry).attributes.position.array)
   scene.add(ocean)
   // scene.rotateX(-Math.PI / 2)
   // objects.push(plane)
