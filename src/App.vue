@@ -11,6 +11,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { onMounted, ref, shallowRef } from 'vue'
 import { computeHeightField, generateKs } from './utils'
+import { createGeometry } from './Materials/Floor'
 // import Floor from './Body/Floor'
 
 const ks = generateKs()
@@ -106,15 +107,18 @@ function setFloor() {
   // const geometry = new THREE.BufferGeometry()
   // geometry.setAttribute('position', new THREE.Float32BufferAttribute([], 3))
   // scene.add(new THREE.LineSegments(new THREE.WireframeGeometry(geometry), lineMaterial))
-  ocean = new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({
-    color: 0x1e90ff,
-    flatShading: false,
-    specular: 0x111111,
-    wireframe: false,
-    shininess: 80,
-    opacity: 0.9,
-    transparent: true,
-  }))
+
+  const computeM = createGeometry()
+  // ocean = new THREE.Mesh(geometry, new THREE.MeshPhongMaterial({
+  //   color: 0x1e90ff,
+  //   flatShading: false,
+  //   specular: 0x111111,
+  //   wireframe: false,
+  //   shininess: 80,
+  //   opacity: 0.9,
+  //   transparent: true,
+  // }))
+  ocean = new THREE.Mesh(geometry, computeM)
   initial = new Float32Array((ocean.geometry as THREE.PlaneGeometry).attributes.position.array)
   scene.add(ocean)
   // scene.rotateX(-Math.PI / 2)
