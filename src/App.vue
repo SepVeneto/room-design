@@ -12,6 +12,7 @@ import { onMounted, ref, shallowRef } from 'vue'
 // import { generateKs } from './utils'
 import { createGeometry, JONSWAPAlpha, JONSWAPPeakAngularFrequency, spectrumShader, vertexShader } from './Materials/Floor'
 import { attribute, cameraProjectionMatrix, cameraViewMatrix, color, globalId, modelWorldMatrix, positionLocal, texture, textureStore } from 'three/tsl'
+import { Ocean } from './sharders/Ocean'
 // import Floor from './Body/Floor'
 
 // const ks = generateKs()
@@ -39,7 +40,7 @@ function initRenderer() {
   renderer.setSize(window.innerWidth, window.innerHeight)
   threeDomRef.value.appendChild(renderer.domElement)
 
-  renderer.computeAsync(computeSpectrum)
+  // renderer.computeAsync(computeSpectrum)
 }
 
 function initScene() {
@@ -73,9 +74,10 @@ function init() {
   // initGridHelper()
   initAxesHelper()
 
+  initRenderer()
+
   setFloor()
 
-  initRenderer()
   // eventListen()
 }
 
@@ -88,8 +90,8 @@ const RESOLUTION = 16
 
 function render() {
   // computeHeightField(ks, performance.now() * 0.001, RESOLUTION, 64, initial, ocean.geometry)
-  (ocean.geometry as THREE.PlaneGeometry).attributes.position.needsUpdate = true
-  ocean.geometry.computeVertexNormals()
+  // (ocean.geometry as THREE.PlaneGeometry).attributes.position.needsUpdate = true
+  // ocean.geometry.computeVertexNormals()
 
   // for (let i = 0; i < frameHeight.length; i++) {
   //   const height = frameHeight[i]
@@ -104,10 +106,12 @@ function render() {
 const spectrumTexture = new THREE.StorageTexture(16, 16)
 spectrumTexture.type = THREE.FloatType
 
-let ocean: THREE.Mesh
+// let ocean: THREE.Mesh
 let computeSpectrum: THREE.ComputeNode
 // let initial: Float32Array
 function setFloor() {
+  const ocean = new Ocean(renderer)
+  ocean.init()
   // const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 })
   const geometry = new THREE.PlaneGeometry(RESOLUTION, RESOLUTION, 32, 32)
   geometry.rotateX(-Math.PI / 2)
@@ -126,8 +130,7 @@ function setFloor() {
     alpha: JONSWAPAlpha(),
     peak_frequency: JONSWAPPeakAngularFrequency(),
     tile_length: 50,
-  }).compute(1)
-
+  }).compute(1, [16, 16, 1])
 
   const _material = new THREE.MeshStandardNodeMaterial({
     colorNode: color(0xff0000),
@@ -150,10 +153,10 @@ function setFloor() {
   //   modelWorldMatrix,
   //   position: attribute('position'),
   // })
-  ocean = new THREE.Mesh(geometry, _material)
+  // ocean = new THREE.Mesh(geometry, _material)
   // ocean = new THREE.Mesh(geometry, computeM)
   // initial =new Float32Array((ocean.geometry as THREE.PlaneGeometry).attributes.position.array)
-  scene.add(ocean)
+  // scene.add(ocean)
   // scene.rotateX(-Math.PI / 2)
   // objects.push(plane)
 }

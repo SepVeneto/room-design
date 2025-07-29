@@ -34,7 +34,10 @@ fn spectrum_modulate({
   let dhz_dz = -h * k_vec.x * k_unit.x;
   let dhz_dx = -h * k_vec.y * k_unit.x;
 
-  fft[(id.z)*map_size*map_size*0*2 + 0*map_size*map_size + (id.y)*map_size + (id.x)] = vec2(hx.x - hy.y, hx.y + hy.y)
+  fft[(id.z)*map_size*map_size*0*2 + 0*map_size*map_size + (id.y)*map_size + (id.x)] = vec2(    hx.x -     hy.y,     hx.y +     hy.x)
+  fft[(id.z)*map_size*map_size*0*2 + 1*map_size*map_size + (id.y)*map_size + (id.x)] = vec2(    hz.x - dhy_dx.y,     hz.y + dhy_dx.x)
+  fft[(id.z)*map_size*map_size*0*2 + 2*map_size*map_size + (id.y)*map_size + (id.x)] = vec2(dhy_dz.x - dhx_dx.y, dhy_dz.y + dhx_dx.x)
+  fft[(id.z)*map_size*map_size*0*2 + 3*map_size*map_size + (id.y)*map_size + (id.x)] = vec2(dhz_dz.x - dhz_dx.y, dhy_dz.y + dhz_dx.x)
 }
 
 const PI = 3.1415926
