@@ -1,5 +1,5 @@
 import { JONSWAPAlpha, JONSWAPPeakAngularFrequency } from '@/Materials/Floor'
-import { globalId, numWorkgroups, texture, textureStore, vec3, wgslFn } from 'three/tsl'
+import { globalId, numWorkgroups, storage, struct, texture, textureStore, uniform, vec3, vec4, wgslFn } from 'three/tsl'
 import * as THREE from 'three/webgpu'
 import spectrumCompute from './spectrumCompute.wgsl'
 import spectrumModulate from './spectrumModulate.wgsl'
@@ -16,7 +16,8 @@ export class Ocean {
   renderer: THREE.WebGPURenderer
   spectrum = new THREE.StorageTexture(MAP_SIZE, MAP_SIZE)
   spectrumModulate = new THREE.StorageTexture(MAP_SIZE, MAP_SIZE)
-  butterfly = new THREE.StorageTexture(NUM_FFT_STAGE * MAP_SIZE * 4 * 4, NUM_FFT_STAGE * MAP_SIZE * 4 * 4)
+  butterfly = new THREE.IndirectStorageBufferAttribute(new Float32Array(NUM_FFT_STAGE * MAP_SIZE * 4 * 4), 4)
+  fftCompute = new THREE.IndirectStorageBufferAttribute(new Float32Array(MAP_SIZE * MAP_SIZE * 4 * 2 * 2), 4)
   spectrumComputeCompile: THREE.ComputeNode
   spectrumModulateCompile: THREE.ComputeNode
   butterflyCompile: THREE.ComputeNode
@@ -31,12 +32,15 @@ export class Ocean {
   }
 
   genButterflyCompile() {
+    const butterflyStruct = struct({
+      values: 'vec4<f32>',
+    }, 'ButterflyData')
     return butterflyShader({
       numWorkGroups: numWorkgroups,
       workGroupSize: vec3(64, 1, 1),
       globalId,
-      butterfly: textureStore(this.butterfly),
-    }).compute(1, [64, 1, 1])
+      butterfly: storage(this.butterfly, butterflyStruct, this.butterfly.count),
+    }).compute(1)
   }
 
   genSpectrumCompile() {
@@ -46,7 +50,7 @@ export class Ocean {
       alpha: JONSWAPAlpha(),
       peak_frequency: JONSWAPPeakAngularFrequency(),
       tile_length: 50,
-    }).compute(1, [16, 16, 1]) // TODO: count的意义是什么, 另一个是workgroupsize
+    }).compute(1) // TODO: count的意义是什么, 另一个是workgroupsize
   }
 
   genSpectrumModulateCompile() {
@@ -64,6 +68,7 @@ export class Ocean {
   init() {
     this.renderer.computeAsync(this.spectrumComputeCompile)
     this.renderer.computeAsync(this.butterflyCompile)
+    console.log(this.butterfly)
   }
 
   update() {

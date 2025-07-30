@@ -55,10 +55,3 @@ fn conj_complex(x: vec2<f32>) -> vec2<f32> {
   x.y *= -1
   return x;
 }
-
-fn FFT_DATA(id: vec3<u32>, layer: u32, data: vec2<f32>, target: texture_storage_2d<rgba32float, write>) {
-  target[(id.z)*map_size*map_size*NUM_SPECTRA*2 + (layer)*map_size*map_size + (id.y)*map_size + (id.x)])
-  vec2
-  vec2
-  vec
-}
