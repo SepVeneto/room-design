@@ -21,9 +21,10 @@ fn fft_butterfly(
 
   let read_indices = vec2<f32>(bitcast<f32>(r0), bitcast<f32>(r1));
 
-  butterfly[0].values = vec4<f32>(1.0, 1.0, 1.0, 1.0);
-  // butterfly[butterfly_index(w0, stage, map_size)].values = vec4<f32>(read_indices, twiddle_factor);
-  // butterfly[butterfly_index(w1, stage, map_size)].values = vec4<f32>(read_indices, -twiddle_factor);
+  butterfly[butterfly_index(w0, stage, map_size)].read_indices = read_indices;
+  butterfly[butterfly_index(w0, stage, map_size)].twiddle_factor = twiddle_factor;
+  butterfly[butterfly_index(w1, stage, map_size)].read_indices = read_indices;
+  butterfly[butterfly_index(w1, stage, map_size)].twiddle_factor = -twiddle_factor;
 }
 
 const PI = 3.1415926;

@@ -1,13 +1,27 @@
 import { JONSWAPAlpha, JONSWAPPeakAngularFrequency } from '@/Materials/Floor'
-import { globalId, numWorkgroups, storage, struct, texture, textureStore, uniform, vec3, vec4, wgslFn } from 'three/tsl'
+import { globalId, localId, numWorkgroups, storage, struct, texture, textureLoad, textureStore, vec3, wgslFn, workgroupId } from 'three/tsl'
 import * as THREE from 'three/webgpu'
 import spectrumCompute from './spectrumCompute.wgsl'
 import spectrumModulate from './spectrumModulate.wgsl'
 import fftButterfly from './fftButterfly.wgsl'
+import fftCompute from './fftCompute.wgsl'
+import transpose from './transpose.wgsl'
+import fftUnpack from './fftUnpack.wgsl'
+
+const butterflyStruct = struct({
+  twiddle_factor: 'vec2<f32>',
+  read_indices: 'vec2<f32>',
+}, 'ButterflyData')
+const fftBufferStruct = struct({
+  values: 'vec2<f32>',
+}, 'FFTBuffer')
 
 const spectrumComputeShader = wgslFn(spectrumCompute)
 const spectrumModulateShader = wgslFn(spectrumModulate)
 const butterflyShader = wgslFn(fftButterfly)
+const fftComputeShader = wgslFn(fftCompute)
+const transposeShader = wgslFn(transpose)
+const fftUnpackShader = wgslFn(fftUnpack)
 
 const MAP_SIZE = 16
 const NUM_FFT_STAGE = Math.log(MAP_SIZE) / Math.log(2)
@@ -15,26 +29,61 @@ const NUM_FFT_STAGE = Math.log(MAP_SIZE) / Math.log(2)
 export class Ocean {
   renderer: THREE.WebGPURenderer
   spectrum = new THREE.StorageTexture(MAP_SIZE, MAP_SIZE)
-  spectrumModulate = new THREE.StorageTexture(MAP_SIZE, MAP_SIZE)
   butterfly = new THREE.IndirectStorageBufferAttribute(new Float32Array(NUM_FFT_STAGE * MAP_SIZE * 4 * 4), 4)
-  fftCompute = new THREE.IndirectStorageBufferAttribute(new Float32Array(MAP_SIZE * MAP_SIZE * 4 * 2 * 2), 4)
+  fftBuffer = new THREE.IndirectStorageBufferAttribute(new Float32Array(MAP_SIZE * MAP_SIZE * 4 * 2 * 2), 4)
+  displacementMap = new THREE.StorageTexture(MAP_SIZE, MAP_SIZE)
+  normalMap = new THREE.StorageTexture(MAP_SIZE, MAP_SIZE)
+
   spectrumComputeCompile: THREE.ComputeNode
   spectrumModulateCompile: THREE.ComputeNode
   butterflyCompile: THREE.ComputeNode
+  fftComputeCompile: THREE.ComputeNode
+  transposeCompile: THREE.ComputeNode
+  fftUnPackCompile: THREE.ComputeNode
   constructor(renderer: THREE.WebGPURenderer) {
     this.renderer = renderer
     this.spectrum.type = THREE.FloatType
-    this.spectrumModulate.type = THREE.FloatType
 
     this.spectrumComputeCompile = this.genSpectrumCompile()
     this.spectrumModulateCompile = this.genSpectrumModulateCompile()
     this.butterflyCompile = this.genButterflyCompile()
+    this.fftComputeCompile = this.genFFTComputeCompile()
+    this.transposeCompile = this.genTransposeCompile()
+    this.fftUnPackCompile = this.genFFTUpackCompile()
+  }
+
+  genFFTUpackCompile() {
+    return fftUnpackShader({
+      displace_map: textureStore(this.displacementMap),
+      normal_map: textureStore(this.normalMap),
+    }).compute(1)
+  }
+
+  genTransposeCompile() {
+    return transposeShader({
+      numWorkGroups: numWorkgroups,
+      workGroupSize: vec3(64, 1, 1),
+      workgroupId,
+      globalId,
+      localId,
+      butterfly: storage(this.butterfly, butterflyStruct, this.butterfly.count),
+      data: storage(this.fftBuffer, fftBufferStruct, this.fftBuffer.count),
+    }).compute(1)
+  }
+
+  genFFTComputeCompile() {
+    return fftComputeShader({
+      numWorkGroups: numWorkgroups,
+      workGroupSize: vec3(64, 1, 1),
+      workgroupId,
+      globalId,
+      localId,
+      butterfly: storage(this.butterfly, butterflyStruct, this.butterfly.count),
+      data: storage(this.fftBuffer, fftBufferStruct, this.fftBuffer.count),
+    }).compute(1)
   }
 
   genButterflyCompile() {
-    const butterflyStruct = struct({
-      values: 'vec4<f32>',
-    }, 'ButterflyData')
     return butterflyShader({
       numWorkGroups: numWorkgroups,
       workGroupSize: vec3(64, 1, 1),
@@ -55,23 +104,27 @@ export class Ocean {
 
   genSpectrumModulateCompile() {
     return spectrumModulateShader({
-      fft: textureStore(this.spectrumModulate),
+      fft: storage(this.fftBuffer, fftBufferStruct, this.fftBuffer.count),
+      // butterfly: storage(this.butterfly, butterflyStruct, this.butterfly.count),
       numWorkGroups: numWorkgroups,
       workGroupSize: vec3(16, 16, 1),
       globalId,
       tile_length: 50,
-      spectrum: texture(this.spectrum),
-      time: Date.now(),
+      spectrum: textureLoad(this.spectrum),
+      time: performance.now(),
     }).compute(1)
   }
 
   init() {
     this.renderer.computeAsync(this.spectrumComputeCompile)
     this.renderer.computeAsync(this.butterflyCompile)
-    console.log(this.butterfly)
   }
 
-  update() {
-    this.renderer.computeAsync(this.spectrumModulateCompile)
+  async update() {
+    await this.renderer.compute(this.spectrumModulateCompile)
+    await this.renderer.compute(this.fftComputeCompile)
+    await this.renderer.compute(this.transposeCompile)
+    await this.renderer.compute(this.fftComputeCompile)
+    await this.renderer.compute(this.fftUnPackCompile)
   }
 }

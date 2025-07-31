@@ -1,8 +1,11 @@
 <template>
+  <div>
   <div
     id="container"
     ref="threeDomRef"
   />
+  <button @click="ocean.update()">click me</button>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -10,8 +13,8 @@ import * as THREE from 'three/webgpu'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { onMounted, ref, shallowRef } from 'vue'
 // import { generateKs } from './utils'
-import { createGeometry, JONSWAPAlpha, JONSWAPPeakAngularFrequency, spectrumShader, vertexShader } from './Materials/Floor'
-import { attribute, cameraProjectionMatrix, cameraViewMatrix, color, globalId, modelWorldMatrix, positionLocal, texture, textureStore } from 'three/tsl'
+import { JONSWAPAlpha, JONSWAPPeakAngularFrequency, spectrumShader } from './Materials/Floor'
+import { color, globalId, positionLocal, texture, textureStore } from 'three/tsl'
 import { Ocean } from './sharders/Ocean'
 // import Floor from './Body/Floor'
 
@@ -39,6 +42,7 @@ function initRenderer() {
   renderer.setPixelRatio(window.devicePixelRatio)
   renderer.setSize(window.innerWidth, window.innerHeight)
   threeDomRef.value.appendChild(renderer.domElement)
+  return renderer.init()
 
   // renderer.computeAsync(computeSpectrum)
 }
@@ -66,7 +70,7 @@ function initLighting() {
   scene.add(directionalLight)
 }
 
-function init() {
+async function init() {
   initScene()
   initCamera()
   initLighting()
@@ -74,7 +78,7 @@ function init() {
   // initGridHelper()
   initAxesHelper()
 
-  initRenderer()
+  await initRenderer()
 
   setFloor()
 
@@ -106,11 +110,12 @@ function render() {
 const spectrumTexture = new THREE.StorageTexture(16, 16)
 spectrumTexture.type = THREE.FloatType
 
+let ocean
 // let ocean: THREE.Mesh
 let computeSpectrum: THREE.ComputeNode
 // let initial: Float32Array
 function setFloor() {
-  const ocean = new Ocean(renderer)
+  ocean = new Ocean(renderer)
   ocean.init()
   // const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 })
   const geometry = new THREE.PlaneGeometry(RESOLUTION, RESOLUTION, 32, 32)
