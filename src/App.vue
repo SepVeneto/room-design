@@ -1,10 +1,12 @@
 <template>
   <div>
-  <div
-    id="container"
-    ref="threeDomRef"
-  />
-  <button @click="ocean.update()">click me</button>
+    <div
+      id="container"
+      ref="threeDomRef"
+    />
+    <button @click="manualUpdate">
+      click me
+    </button>
   </div>
 </template>
 
@@ -113,6 +115,7 @@ spectrumTexture.type = THREE.FloatType
 let ocean
 // let ocean: THREE.Mesh
 let computeSpectrum: THREE.ComputeNode
+
 // let initial: Float32Array
 function setFloor() {
   ocean = new Ocean(renderer)
@@ -129,13 +132,13 @@ function setFloor() {
   // spectrum.vertexNode = spectrumShader({
   //   storage: spectrumTexture,
   // })
-  computeSpectrum = spectrumShader({
-    globalId,
-    spectrum: textureStore(spectrumTexture),
-    alpha: JONSWAPAlpha(),
-    peak_frequency: JONSWAPPeakAngularFrequency(),
-    tile_length: 50,
-  }).compute(1, [16, 16, 1])
+  // computeSpectrum = spectrumShader({
+  //   globalId,
+  //   spectrum: textureStore(spectrumTexture),
+  //   alpha: JONSWAPAlpha(),
+  //   peak_frequency: JONSWAPPeakAngularFrequency(),
+  //   tile_length: 50,
+  // }).compute(1, [16, 16, 1])
 
   const _material = new THREE.MeshStandardNodeMaterial({
     colorNode: color(0xff0000),
@@ -158,11 +161,17 @@ function setFloor() {
   //   modelWorldMatrix,
   //   position: attribute('position'),
   // })
+  const inst = new THREE.Mesh(geometry, ocean.createOcean())
+  // const inst = new THREE.Mesh(geometry, _material)
+  scene.add(inst)
   // ocean = new THREE.Mesh(geometry, _material)
   // ocean = new THREE.Mesh(geometry, computeM)
   // initial =new Float32Array((ocean.geometry as THREE.PlaneGeometry).attributes.position.array)
   // scene.add(ocean)
   // scene.rotateX(-Math.PI / 2)
   // objects.push(plane)
+}
+function manualUpdate() {
+  ocean.update()
 }
 </script>

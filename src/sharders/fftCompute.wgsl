@@ -2,7 +2,7 @@ fn fft_compute(
   numWorkGroups: vec3<u32>,
   workGroupSize: vec3<u32>,
   globalId: vec3<u32>,
-  localId: vec3<u32>,
+  local_id: vec3<u32>,
   butterfly: ptr<storage, array<ButterflyData>, read_write>,
   data: ptr<storage, array<FFTBuffer>, read_write>,
 ) -> void {
@@ -12,15 +12,14 @@ fn fft_compute(
   let col = id.x;
   let spectrum = globalId.z;
 
-  if (localId.x >= map_size) {
-    return;
-  }
+
 
   row_shared[row_shared_index(col, 0)] = data[data_in_index(id, spectrum, map_size)].values;
-  for (let stage = 0u; stage < num_stages; stage++) {
+  for (var stage = 0u; f32(stage) < num_stages; stage++) {
     workgroupBarrier();
     let buf_idx = vec2(stage % 2, (stage + 1) % 2);
-    let butterfly_data = butterfly[butterfly_index(col, stage, map_size)];
+    let butterfly_item = butterfly[butterfly_index(col, stage, map_size)];
+    let butterfly_data = vec4<f32>(butterfly_item.read_indices, butterfly_item.twiddle_factor);
 
     let read_indices = bitcast<vec2<u32>>(butterfly_data.xy);
     let twiddle_factor = butterfly_data.zw;
@@ -29,7 +28,11 @@ fn fft_compute(
     let lower = row_shared[row_shared_index(read_indices[1], buf_idx[0])];
     row_shared[row_shared_index(col, buf_idx[1])] = upper + mul_complex(lower, twiddle_factor);
   }
-  data[data_out_index(id, spectrum, map_size)] = row_shared[row_shared_index(col, num_stages % 2)];
+  // 防止死锁，所以只能放在循环后面
+  if (local_id.x >= map_size) {
+    return;
+  }
+  data[data_out_index(id, spectrum, map_size)].values = row_shared[row_shared_index(col, u32(num_stages) % 2)];
 }
 
 const MAX_MAP_SIZE = 1024u;
