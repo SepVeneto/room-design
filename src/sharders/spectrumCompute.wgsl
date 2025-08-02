@@ -11,7 +11,7 @@ fn spectrum_compute(
   var id1 = -vec2<f32>(id0) % vec2<f32>(dims);
 
   var res = get_spectrum_amplitude(id0, dims, tile_length, peak_frequency, alpha);
-  textureStore(spectrum, id.xy, vec4<f32>(res.xy, conj_complex(res)));
+  textureStore(spectrum, vec2(0, 0), vec4<f32>(res.xy, conj_complex(res)));
 }
 
 const G = 9.81;
