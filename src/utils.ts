@@ -1,4 +1,6 @@
-import { Float32BufferAttribute, MaxEquation } from "three"
+// eslint-disable-next-line eslint-comments/disable-enable-pair
+/* eslint-disable accessor-pairs */
+import type { Float32BufferAttribute } from 'three'
 
 const V = 4.0
 const g = 9.81
@@ -80,4 +82,44 @@ export function computeHeightField(ks: KS[], time: number, size: number, resolut
     }
   }
   return pos
+}
+
+export class PushConstants {
+  static size = 64
+  buffer: ArrayBuffer
+  view: DataView
+  constructor() {
+    this.buffer = new ArrayBuffer(PushConstants.size)
+    this.view = new DataView(this.buffer)
+  }
+
+  set seed(val: number[]) {
+    this.view.setInt32(0, val[0], true)
+    this.view.setInt32(4, val[1], true)
+  }
+
+  set tile_length(val: number[]) {
+    this.view.setFloat32(8, val[0], true)
+    this.view.setFloat32(12, val[0], true)
+  }
+
+  set depth(val: number) {
+    this.view.setFloat32(16, val, true)
+  }
+
+  set alpha(val: number) {
+    this.view.setFloat32(20, val, true)
+  }
+
+  set peak_frequency(val: number) {
+    this.view.setFloat32(24, val, true)
+  }
+
+  set wind_speed(val: number) {
+    this.view.setFloat32(28, val, true)
+  }
+
+  set cascade_index(val: number) {
+    this.view.setFloat32(32, val, true)
+  }
 }

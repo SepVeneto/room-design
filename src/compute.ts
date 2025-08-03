@@ -1,20 +1,10 @@
-const spectrumCompute = `
-@group(0) @binding(0) var spectrum: texture_storage_2d<rgba32float, write>;
+import { JONSWAPAlpha, JONSWAPPeakAngularFrequency } from './Materials/Floor'
+import spectrumCompute from './sharders/spectrumCompute.wgsl'
+import butterflyFactorShader from './sharders/fftButterfly.wgsl'
+import { PushConstants, PushConstants } from './utils'
 
-@compute @workgroup_size(16, 16, 1)
-fn main(
-  @builtin(global_invocation_id) global_id: vec3<u32>,
-) {
-  let dims: vec2<i32> = vec2<i32>(textureDimensions(spectrum));
-  let id: vec3<i32> = vec3<i32>(vec3<i32>(global_id).xy, 0);
-  let id0: vec2<i32> = vec2<i32>(id.xy);
-  let id1: vec2<i32> = vec2<i32>(-id0) % dims;
-
-  textureStore(spectrum, id.xy, vec4<f32>(1.0, 2.0, 3.0, 4.0));
-}
-`
-
-const RESOLUTION = 16
+const RESOLUTION = 128
+const NUM_FFT_STAGE = Math.log(RESOLUTION) / Math.log(2)
 
 export class Renderer {
   device: GPUDevice | null = null
@@ -34,6 +24,7 @@ export class Renderer {
     }
 
     this.device = await adapter.requestDevice()
+    Computer.device = this.device
 
     this.ctx?.configure({
       device: this.device,
@@ -45,7 +36,32 @@ export class Renderer {
   async compute() {
     const device = this.device!
 
+    const spectrumComputer = new Computer(
+      spectrumCompute,
+      'main',
+    )
+
+    const pushConstants = new PushConstants()
+    pushConstants.seed = [123, 123]
+    pushConstants.tile_length = [50, 50]
+    pushConstants.alpha = JONSWAPAlpha()
+    pushConstants.cascade_index = 0
+    pushConstants.peak_frequency = JONSWAPPeakAngularFrequency()
+    pushConstants.depth = 20
+    pushConstants.wind_speed = 20
+    const uniformBuffer = device.createBuffer({
+      label: 'Uniform Buffer',
+      size: PushConstants.size,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: true,
+    })
+    new Uint8Array(uniformBuffer.getMappedRange()).set(new Uint8Array(pushConstants.buffer))
+    uniformBuffer.unmap()
+    const bindUniform = spectrumComputer
+      .createBindGroup([uniformBuffer], 0, 'buffer')
+
     const spectrum = device.createTexture({
+      label: 'Spectrum Texture',
       size: [RESOLUTION, RESOLUTION],
       format: 'rgba32float',
       usage: GPUTextureUsage.TEXTURE_BINDING |
@@ -53,44 +69,43 @@ export class Renderer {
              GPUTextureUsage.COPY_DST |
              GPUTextureUsage.COPY_SRC,
     })
+    const bindGroup = spectrumComputer.createBindGroup([spectrum], 1, 'texture')
 
-    const computePipline = device.createComputePipeline({
-      layout: 'auto',
-      compute: {
-        module: device.createShaderModule({ code: spectrumCompute }),
-        entryPoint: 'main',
-      },
+    spectrumComputer.setBindGroup(0, bindUniform)
+    spectrumComputer.setBindGroup(1, bindGroup)
+
+    // fft butterfly
+    const fftButterflyComputer = new Computer(
+      butterflyFactorShader,
+      'main',
+      [device.createBindGroupLayout({
+        entries: [{
+          binding: 0,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: 'storage' },
+        }],
+      })],
+    )
+    const butterflyFactor = device.createBuffer({
+      label: 'Butterfly Factor',
+      size: NUM_FFT_STAGE * RESOLUTION * 4 * 4, // sizeof(vec4<f32>)
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+      mappedAtCreation: false,
     })
+    const bfGroup = fftButterflyComputer.createBindGroup([butterflyFactor], 0, 'buffer')
+    fftButterflyComputer.setBindGroup(0, bfGroup)
 
-    const bindGroup = device.createBindGroup({
-      layout: computePipline.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: spectrum.createView() },
-      ],
-    })
+    spectrumComputer.run([RESOLUTION / 16, RESOLUTION / 16, 1])
+    fftButterflyComputer.run([RESOLUTION / 2 / 64, NUM_FFT_STAGE, 1])
 
-    const commandEncoder = device.createCommandEncoder()
-    const computePass = commandEncoder.beginComputePass()
-    computePass.setPipeline(computePipline)
-    computePass.setBindGroup(0, bindGroup)
+    device.queue.submit([
+      spectrumComputer.commandEncoder.finish(),
+      fftButterflyComputer.commandEncoder.finish(),
+    ])
 
-    computePass.dispatchWorkgroups(RESOLUTION / 16, RESOLUTION / 16, 1)
-    computePass.end()
-
-    const buffer = device.createBuffer({
-      size: RESOLUTION * RESOLUTION * 16,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-    })
-    commandEncoder.copyTextureToBuffer({
-      texture: spectrum,
-    }, { buffer, bytesPerRow: 256 }, [RESOLUTION, RESOLUTION, 1])
-
-    device.queue.submit([commandEncoder.finish()])
-
-    await buffer.mapAsync(GPUMapMode.READ)
-    const data = new Float32Array(buffer.getMappedRange())
-    // buffer.unmap()
-    console.log(data)
+    spectrumComputer.debug()
+    fftButterflyComputer.debug()
+    // debug()
   }
 
   draw() {
@@ -173,5 +188,146 @@ export class Renderer {
       vertexCount: vertices.length / 3,
       indexCount: indices.length,
     }
+  }
+}
+
+// function createButterfactorPipeline(device: GPUDevice, bindGroup: GPUBindGroup[], bindGroupLayout: GPUBindGroupLayout[]) {
+//   const computePipline = device.createComputePipeline({
+//     layout: device.createPipelineLayout({ bindGroupLayouts: bindGroupLayout }),
+//     compute: {
+//       module: device.createShaderModule({ code: butterflyFactorShader }),
+//       entryPoint: 'main',
+//     },
+//   })
+
+//   const commandEncoder = device.createCommandEncoder()
+//   const computePass = commandEncoder.beginComputePass()
+//   computePass.setPipeline(computePipline)
+//   bindGroup.forEach((item, index) => {
+//     computePass.setBindGroup(index, item)
+//   })
+
+//   computePass.dispatchWorkgroups(RESOLUTION / 2 / 64, NUM_FFT_STAGE, 1)
+//   computePass.end()
+
+//   return commandEncoder
+// }
+
+// function debugBuffer(
+//   device: GPUDevice,
+//   size: number,
+//   encoder: GPUCommandEncoder,
+//   source: GPUBuffer,
+// ) {
+//   const buffer = device.createBuffer({
+//     label: 'Debug Buffer',
+//     size,
+//     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+//   })
+//   encoder.copyBufferToBuffer(source, buffer, size)
+
+//   return async () => {
+//     await buffer.mapAsync(GPUMapMode.READ)
+//     console.log(new Float32Array(buffer.getMappedRange()))
+//   }
+// }
+
+class Computer {
+  static device: GPUDevice
+  commandEncoder: GPUCommandEncoder
+  pipeline: GPUComputePipeline
+  bindGroups: GPUBindGroup[] = []
+  buffers: (GPUBuffer | GPUTexture)[] = []
+  groupLayouts: GPUBindGroupLayout[]
+  debugs: (() => void)[] = []
+  constructor(
+    code: string,
+    entryPoint: string,
+    bindGroupLayouts: GPUBindGroupLayout[] = [],
+  ) {
+    const device = Computer.device
+    this.commandEncoder = device.createCommandEncoder()
+    this.groupLayouts = bindGroupLayouts
+    this.pipeline = device.createComputePipeline({
+      layout: bindGroupLayouts.length === 0 ? 'auto' : device.createPipelineLayout({ bindGroupLayouts }),
+      compute: {
+        module: device.createShaderModule({ code }),
+        entryPoint,
+      },
+    })
+  }
+
+  createBindGroup(buffers: (GPUBuffer | GPUTexture)[], group: number, type: 'texture' | 'buffer') {
+    const device = Computer.device
+    this.buffers = buffers
+    const entries: GPUBindGroupEntry[] = []
+    buffers.forEach((buffer, index) => {
+      switch (type) {
+        case 'texture':
+          entries.push({
+            binding: index, resource: (buffer as GPUTexture).createView(),
+          })
+          break
+        case 'buffer':
+          entries.push({
+            binding: index, resource: { buffer: buffer as GPUBuffer },
+          })
+          break
+      }
+    })
+    return device.createBindGroup({
+      layout: this.pipeline.getBindGroupLayout(group),
+      entries,
+    })
+  }
+
+  setBindGroup(group: number, bindGroup: GPUBindGroup) {
+    this.bindGroups[group] = bindGroup
+  }
+
+  run(workgroup: number[]) {
+    const computePass = this.commandEncoder.beginComputePass()
+    computePass.setPipeline(this.pipeline)
+    this.bindGroups.forEach((item, index) => {
+      computePass.setBindGroup(index, item)
+    })
+    const [x, y, z] = workgroup
+    computePass.dispatchWorkgroups(x, y, z)
+    computePass.end()
+
+    const device = Computer.device
+    this.buffers.forEach(buffer => {
+      if (buffer.label.includes('Texture')) {
+        const debugBuffer = device.createBuffer({
+          size: RESOLUTION * RESOLUTION * 4 * 4,
+          usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+        })
+        this.commandEncoder.copyTextureToBuffer({
+          texture: buffer as GPUTexture,
+        }, { buffer: debugBuffer, bytesPerRow: Math.max(256, RESOLUTION * 4 * 4) }, [RESOLUTION, RESOLUTION, 1])
+        this.debugs.push(() => {
+          debugBuffer.mapAsync(GPUMapMode.READ).then(() => {
+            console.log(new Float32Array(debugBuffer.getMappedRange()))
+          })
+        })
+      } else {
+        const debugBuffer = device.createBuffer({
+          label: `Debug:${buffer.label}`,
+          size: buffer.size,
+          usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+        })
+        this.commandEncoder.copyBufferToBuffer(buffer, debugBuffer, buffer.size)
+
+        this.debugs.push(() => {
+          debugBuffer.mapAsync(GPUMapMode.READ).then(() => {
+            console.log(new Float32Array(debugBuffer.getMappedRange()))
+          })
+        })
+      }
+    })
+  }
+
+  debug() {
+    this.debugs.forEach(fn => fn())
   }
 }

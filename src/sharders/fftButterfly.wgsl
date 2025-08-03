@@ -1,10 +1,11 @@
-fn fft_butterfly(
-  numWorkGroups: vec3<u32>,
-  workGroupSize: vec3<u32>,
-  globalId: vec3<u32>,
-  butterfly: ptr<storage, array<ButterflyData>, read_write>
-) -> void {
-  let map_size = numWorkGroups.x * workGroupSize.x * 2;
+@group(0) @binding(0)  var<storage, read_write> butterfly: array<vec4<f32>>;
+
+@compute @workgroup_size(64, 1, 1)
+fn main(
+  @builtin(global_invocation_id) globalId: vec3<u32>,
+  @builtin(num_workgroups) numWorkGroups: vec3<u32>,
+) {
+  let map_size = numWorkGroups.x * 64 * 2;
   let col = globalId.x;
   let stage = globalId.y;
 
@@ -21,10 +22,8 @@ fn fft_butterfly(
 
   let read_indices = vec2<f32>(bitcast<f32>(r0), bitcast<f32>(r1));
 
-  butterfly[butterfly_index(w0, stage, map_size)].read_indices = read_indices;
-  butterfly[butterfly_index(w0, stage, map_size)].twiddle_factor = twiddle_factor;
-  butterfly[butterfly_index(w1, stage, map_size)].read_indices = read_indices;
-  butterfly[butterfly_index(w1, stage, map_size)].twiddle_factor = -twiddle_factor;
+  butterfly[butterfly_index(w0, stage, map_size)] = vec4<f32>(read_indices, twiddle_factor);
+  butterfly[butterfly_index(w1, stage, map_size)] = vec4<f32>(read_indices, -twiddle_factor);
 }
 
 const PI = 3.1415926;
