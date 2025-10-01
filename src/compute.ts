@@ -1,7 +1,8 @@
 import { JONSWAPAlpha, JONSWAPPeakAngularFrequency } from './Materials/Floor'
 import spectrumCompute from './sharders/spectrumCompute.wgsl'
 import butterflyFactorShader from './sharders/fftButterfly.wgsl'
-import { PushConstants, PushConstants } from './utils'
+import spectrumModulateShader from './sharders/spectrumModulate.wgsl'
+import { ModulatePushConstants, PushConstants } from './utils'
 
 const RESOLUTION = 128
 const NUM_FFT_STAGE = Math.log(RESOLUTION) / Math.log(2)
@@ -35,6 +36,13 @@ export class Renderer {
 
   async compute() {
     const device = this.device!
+
+    const fftBuffer = device.createBuffer({
+      label: 'FFT Buffer',
+      size: 1 * RESOLUTION * RESOLUTION * 4 * 2 * 2 * 4,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: false,
+    })
 
     const spectrumComputer = new Computer(
       spectrumCompute,
@@ -95,16 +103,122 @@ export class Renderer {
     const bfGroup = fftButterflyComputer.createBindGroup([butterflyFactor], 0, 'buffer')
     fftButterflyComputer.setBindGroup(0, bfGroup)
 
+    // modulate
+    const modulatePushConstants = new ModulatePushConstants()
+    modulatePushConstants.tile_length = [50, 50]
+    modulatePushConstants.depth = 20
+    modulatePushConstants.time = 100
+    modulatePushConstants.cascader_index = 0
+    const modulateBuffer = device.createBuffer({
+      label: 'Modulate Uniform Buffer',
+      size: ModulatePushConstants.size,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      mappedAtCreation: true,
+    })
+    new Uint8Array(modulateBuffer.getMappedRange()).set(new Uint8Array(modulatePushConstants.buffer))
+    modulateBuffer.unmap()
+    const spectrumModulateLayout = device.createBindGroupLayout({
+      entries: [
+        // spectrum texture
+        {
+          binding: 0,
+          visibility: GPUShaderStage.COMPUTE,
+          storageTexture: { access: 'read-only', format: 'rgba32float' },
+        },
+        // constant uniform
+        {
+          binding: 1,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: 'uniform' },
+        },
+      ],
+    })
+    const shareStorageLayout = device.createBindGroupLayout({
+      entries: [
+        {
+          binding: 0,
+          visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: 'storage' },
+        },
+      ],
+    })
+    const spectrumModulateBindGroup = device.createBindGroup({
+      layout: spectrumModulateLayout,
+      entries: [
+        {
+          binding: 0,
+          resource: spectrum.createView(),
+        },
+        {
+          binding: 1,
+          resource: { buffer: modulateBuffer },
+        },
+      ],
+    })
+    // const shareStorageBindgGroup = device.createBindGroup({
+    //   layout: shareStorageLayout,
+    //   entries: [
+    //     {
+    //       binding: 0,
+    //       resource: { buffer: fftBuffer },
+    //     },
+    //   ],
+    // })
+    // const spectrumModulatePipelineLayout = device.createPipelineLayout({
+    //   bindGroupLayouts: [spectrumModulateLayout, shareStorageLayout],
+    // })
+    // const spectrumModulatePipline = device.createComputePipeline({
+    //   layout: spectrumModulatePipelineLayout,
+    //   compute: {
+    //     module: device.createShaderModule({ code: spectrumModulateShader }),
+    //     entryPoint: 'main',
+    //   },
+    // })
+
+    // spectrum modulate
+    const spectrumModulateComputer = new Computer(
+      spectrumModulateShader,
+      'main',
+      [
+        spectrumModulateLayout,
+        shareStorageLayout,
+      ],
+    )
+    const bg = spectrumModulateComputer.createBindGroup([fftBuffer], 1, 'buffer')
+    spectrumModulateComputer.setBindGroup(0, spectrumModulateBindGroup)
+    spectrumModulateComputer.setBindGroup(1, bg)
+
     spectrumComputer.run([RESOLUTION / 16, RESOLUTION / 16, 1])
     fftButterflyComputer.run([RESOLUTION / 2 / 64, NUM_FFT_STAGE, 1])
+    spectrumModulateComputer.run([RESOLUTION / 16, RESOLUTION / 16, 1])
+
+    // const debugBuffer = device.createBuffer({
+    //   label: 'Debug FFT Buffer',
+    //   size: fftBuffer.size,
+    //   usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    // })
+    // const commandEncoder = device.createCommandEncoder()
+    // commandEncoder.copyBufferToBuffer(fftBuffer, debugBuffer, fftBuffer.size)
+    // const passEncoder = commandEncoder.beginComputePass()
+    // passEncoder.setPipeline(spectrumModulatePipline)
+    // passEncoder.setBindGroup(0, spectrumModulateBindGroup)
+    // passEncoder.setBindGroup(1, shareStorageBindgGroup)
+    // passEncoder.dispatchWorkgroups(RESOLUTION / 16, RESOLUTION / 16, 1)
+    // passEncoder.end()
 
     device.queue.submit([
       spectrumComputer.commandEncoder.finish(),
       fftButterflyComputer.commandEncoder.finish(),
+      // commandEncoder.finish(),
+      spectrumModulateComputer.commandEncoder.finish(),
     ])
 
     spectrumComputer.debug()
     fftButterflyComputer.debug()
+    spectrumModulateComputer.debug()
+    // debugBuffer.mapAsync(GPUMapMode.READ).then(() => {
+    //   console.log(new Float32Array(debugBuffer.getMappedRange()))
+    // })
     // debug()
   }
 

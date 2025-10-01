@@ -123,3 +123,30 @@ export class PushConstants {
     this.view.setFloat32(32, val, true)
   }
 }
+
+export class ModulatePushConstants {
+  static size = 64
+  buffer: ArrayBuffer
+  view: DataView
+  constructor() {
+    this.buffer = new ArrayBuffer(ModulatePushConstants.size)
+    this.view = new DataView(this.buffer)
+  }
+
+  set tile_length(val: number[]) {
+    this.view.setFloat32(0, val[0], true)
+    this.view.setFloat32(4, val[0], true)
+  }
+
+  set depth(val: number) {
+    this.view.setFloat32(8, val, true)
+  }
+
+  set time(val: number) {
+    this.view.setFloat32(12, val, true)
+  }
+
+  set cascader_index(val: number) {
+    this.view.setFloat32(16, val, true)
+  }
+}
